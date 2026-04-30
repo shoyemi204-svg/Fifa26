@@ -220,7 +220,7 @@ function Card({ children, className, glow = false }) {
 
 const NAV_LINKS = ["About", "Features", "News", "Community", "Ratings", "Player Stats"];
 
-function Navbar({ activeSection }) {
+function Navbar({ activeSection, onBuy }) {
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   useEffect(() => {
@@ -264,7 +264,7 @@ function Navbar({ activeSection }) {
             <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: G }} />
             Available Now
           </Badge>
-          <Button size="sm">Buy Now →</Button>
+          <Button size="sm" onClick={onBuy}>Buy Now →</Button>
         </div>
         {/* Mobile toggle */}
         <button className="md:hidden text-white p-2" onClick={() => setMobileOpen(!mobileOpen)}>
@@ -278,7 +278,7 @@ function Navbar({ activeSection }) {
           {NAV_LINKS.map(l => (
             <a key={l} href={`#${l.toLowerCase().replace(" ", "-")}`} className="block py-2.5 text-sm border-b" style={{ color: "#888", borderColor: "rgba(255,255,255,0.07)" }} onClick={() => setMobileOpen(false)}>{l}</a>
           ))}
-          <Button className="mt-4 w-full">Buy Now →</Button>
+          <Button className="mt-4 w-full" onClick={() => { setMobileOpen(false); onBuy(); }}>Buy Now →</Button>
         </div>
       )}
     </nav>
@@ -289,7 +289,7 @@ function Navbar({ activeSection }) {
    HERO SECTION
 ══════════════════════════════════════════ */
 
-function Hero() {
+function Hero({ onBuy }) {
   const [loaded, setLoaded] = useState(false);
   useEffect(() => { setTimeout(() => setLoaded(true), 100); }, []);
 
@@ -345,7 +345,7 @@ function Hero() {
             className="flex flex-wrap gap-4 mb-10 transition-all duration-700 delay-300"
             style={{ opacity: loaded ? 1 : 0, transform: loaded ? "none" : "translateY(20px)" }}
           >
-            <Button size="lg">Buy Now →</Button>
+            <Button size="lg" onClick={onBuy}>Buy Now →</Button>
             <Button variant="outline" size="lg">▶ Watch Trailer</Button>
           </div>
 
@@ -637,7 +637,7 @@ function GameModes() {
    EDITIONS / BUY
 ══════════════════════════════════════════ */
 
-function Editions() {
+function Editions({ onBuy }) {
   const platforms = ["EA App", "PS5", "PS4", "Xbox", "Switch", "Steam", "Epic"];
   return (
     <section id="community" className="py-28 relative overflow-hidden" style={{ background: "#050505" }}>
@@ -666,7 +666,7 @@ function Editions() {
                   </li>
                 ))}
               </ul>
-              <Button variant="outline" className="w-full">Buy Standard →</Button>
+              <Button variant="outline" className="w-full" onClick={() => onBuy("standard")}>Buy Standard →</Button>
             </div>
           </div>
 
@@ -690,7 +690,7 @@ function Editions() {
                   </li>
                 ))}
               </ul>
-              <Button className="w-full">Buy Icons Edition →</Button>
+              <Button className="w-full" onClick={() => onBuy("icons")}>Buy Icons Edition →</Button>
             </div>
           </div>
         </div>
@@ -1000,10 +1000,374 @@ function Footer() {
 }
 
 /* ══════════════════════════════════════════
+   CHECKOUT DATA & MODAL
+══════════════════════════════════════════ */
+
+const EDITIONS_DATA = {
+  standard: {
+    name: "FC 26 Standard Edition",
+    badge: "STANDARD EDITION",
+    price: 59.99,
+    features: ["Full base game access", "Online multiplayer", "FUT access", "Clubs & Career modes"],
+  },
+  icons: {
+    name: "FC 26 Icons Edition",
+    badge: "ICONS EDITION",
+    price: 79.99,
+    features: ["Everything in Standard", "3 Icon Loan Players", "ICONS Edition FUT items", "Early Access (3 days)", "Exclusive kit & badge"],
+  },
+};
+
+const CHECKOUT_PLATFORMS = ["EA App", "PS5", "PS4", "Xbox Series X|S", "Nintendo Switch", "Steam", "Epic Games"];
+
+function CheckoutModal({ open, edition, onClose, onSelectEdition }) {
+  const [step, setStep] = useState(0);
+  const [platform, setPlatform] = useState("EA App");
+  const [form, setForm] = useState({ name: "", card: "", expiry: "", cvv: "" });
+  const [errors, setErrors] = useState({});
+  const [processing, setProcessing] = useState(false);
+  const [orderNumber, setOrderNumber] = useState("");
+
+  useEffect(() => {
+    if (open) {
+      setStep(0);
+      setForm({ name: "", card: "", expiry: "", cvv: "" });
+      setErrors({});
+      setProcessing(false);
+      setOrderNumber("");
+    }
+  }, [open]);
+
+  useEffect(() => {
+    document.body.style.overflow = open ? "hidden" : "";
+    return () => { document.body.style.overflow = ""; };
+  }, [open]);
+
+  if (!open) return null;
+
+  const ed = EDITIONS_DATA[edition] || EDITIONS_DATA.standard;
+
+  function fmtCard(v) {
+    return v.replace(/\D/g, "").slice(0, 16).replace(/(.{4})/g, "$1 ").trim();
+  }
+  function fmtExpiry(v) {
+    const d = v.replace(/\D/g, "").slice(0, 4);
+    return d.length > 2 ? d.slice(0, 2) + "/" + d.slice(2) : d;
+  }
+
+  function validate() {
+    const e = {};
+    if (!form.name.trim()) e.name = "Name is required";
+    if (form.card.replace(/\s/g, "").length !== 16) e.card = "Enter a valid 16-digit card number";
+    if (!/^\d{2}\/\d{2}$/.test(form.expiry)) e.expiry = "Enter MM/YY format";
+    if (!/^\d{3,4}$/.test(form.cvv)) e.cvv = "Enter 3 or 4 digit CVV";
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  }
+
+  async function handlePay() {
+    if (!validate()) return;
+    setProcessing(true);
+    await new Promise(r => setTimeout(r, 1800));
+    setOrderNumber(`FC26-${Date.now().toString(36).toUpperCase()}`);
+    setProcessing(false);
+    setStep(2);
+  }
+
+  function inputStyle(field) {
+    return {
+      background: "rgba(255,255,255,0.04)",
+      border: `1px solid ${errors[field] ? "#ef4444" : "rgba(255,255,255,0.1)"}`,
+      color: "#fff",
+      outline: "none",
+      width: "100%",
+      padding: "12px 16px",
+      borderRadius: "12px",
+      fontSize: "14px",
+      transition: "border-color 0.2s",
+    };
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+      style={{ background: "rgba(0,0,0,0.85)", backdropFilter: "blur(8px)" }}
+      onClick={e => e.target === e.currentTarget && onClose()}
+    >
+      <div
+        className="relative w-full max-w-lg rounded-3xl overflow-hidden"
+        style={{
+          background: "#0a0a0a",
+          border: "1px solid rgba(255,255,255,0.1)",
+          boxShadow: "0 0 100px rgba(0,230,77,0.08), 0 40px 80px rgba(0,0,0,0.8)",
+          maxHeight: "90vh",
+          overflowY: "auto",
+          animation: "fadeUp 0.3s ease",
+        }}
+      >
+        <BorderBeam />
+
+        {/* Header */}
+        <div className="flex items-center justify-between p-6 border-b" style={{ borderColor: "rgba(255,255,255,0.07)" }}>
+          <div className="flex items-center gap-3">
+            <div className="w-7 h-7 rounded-lg flex items-center justify-center font-black text-black text-xs" style={{ background: G }}>FC</div>
+            <span className="font-bold text-white text-sm">EA SPORTS FC 26</span>
+          </div>
+          {step < 2 && (
+            <div className="flex items-center gap-2">
+              {["Order Review", "Payment"].map((s, i) => (
+                <div key={s} className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
+                    <div
+                      className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold transition-all"
+                      style={{ background: i <= step ? G : "rgba(255,255,255,0.08)", color: i <= step ? "#000" : "#444" }}
+                    >
+                      {i + 1}
+                    </div>
+                    <span className="text-[11px] font-mono hidden sm:block" style={{ color: i === step ? "#ccc" : "#444" }}>{s}</span>
+                  </div>
+                  {i === 0 && <div className="w-6 h-px" style={{ background: "rgba(255,255,255,0.1)" }} />}
+                </div>
+              ))}
+            </div>
+          )}
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-full flex items-center justify-center text-sm transition-all"
+            style={{ background: "rgba(255,255,255,0.05)", color: "#555" }}
+          >
+            ✕
+          </button>
+        </div>
+
+        <div className="p-6">
+
+          {/* ── STEP 0: Order Review ── */}
+          {step === 0 && (
+            <div style={{ animation: "fadeUp .25s ease" }}>
+              <h3 className="text-xl font-black text-white mb-5" style={{ fontFamily: "'Syne',sans-serif" }}>Order Review</h3>
+
+              {/* Edition picker */}
+              <div className="mb-5">
+                <div className="text-[11px] font-mono mb-2.5 tracking-widest" style={{ color: "#444" }}>SELECT EDITION</div>
+                <div className="grid grid-cols-2 gap-3">
+                  {Object.entries(EDITIONS_DATA).map(([key, data]) => (
+                    <div
+                      key={key}
+                      onClick={() => onSelectEdition(key)}
+                      className="p-4 rounded-xl cursor-pointer transition-all duration-200"
+                      style={{
+                        background: key === edition ? "rgba(0,230,77,0.05)" : "rgba(255,255,255,0.02)",
+                        border: `1.5px solid ${key === edition ? "rgba(0,230,77,0.35)" : "rgba(255,255,255,0.07)"}`,
+                      }}
+                    >
+                      <div className="text-[10px] font-mono mb-1 tracking-widest" style={{ color: key === edition ? G : "#333" }}>{data.badge}</div>
+                      <div className="text-sm font-bold text-white mb-1.5" style={{ fontFamily: "'Syne',sans-serif" }}>
+                        {key === "standard" ? "Standard" : "Icons"}
+                      </div>
+                      <div className="text-xl font-black" style={{ color: G, fontFamily: "'Syne',sans-serif" }}>${data.price.toFixed(2)}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Platform picker */}
+              <div className="mb-5">
+                <div className="text-[11px] font-mono mb-2.5 tracking-widest" style={{ color: "#444" }}>SELECT PLATFORM</div>
+                <div className="flex flex-wrap gap-2">
+                  {CHECKOUT_PLATFORMS.map(p => (
+                    <button
+                      key={p}
+                      onClick={() => setPlatform(p)}
+                      className="px-3 py-1.5 rounded-lg text-[11px] font-mono transition-all duration-200"
+                      style={{
+                        background: platform === p ? "rgba(0,230,77,0.08)" : "rgba(255,255,255,0.03)",
+                        border: `1px solid ${platform === p ? "rgba(0,230,77,0.35)" : "rgba(255,255,255,0.07)"}`,
+                        color: platform === p ? G : "#555",
+                      }}
+                    >
+                      {p}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Order summary */}
+              <div className="rounded-xl p-4 mb-5" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                <div className="flex justify-between items-start mb-2">
+                  <div>
+                    <div className="text-sm font-bold text-white">{ed.name}</div>
+                    <div className="text-[11px] font-mono mt-0.5" style={{ color: "#444" }}>{platform}</div>
+                  </div>
+                  <div className="text-sm font-bold text-white">${ed.price.toFixed(2)}</div>
+                </div>
+                <ul className="space-y-1 mb-3">
+                  {ed.features.map(f => (
+                    <li key={f} className="flex items-center gap-1.5 text-xs" style={{ color: "#555" }}>
+                      <span style={{ color: G }}>✓</span> {f}
+                    </li>
+                  ))}
+                </ul>
+                <div className="pt-3 border-t flex justify-between items-center" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+                  <span className="text-xs font-mono" style={{ color: "#444" }}>ORDER TOTAL</span>
+                  <span className="text-lg font-black" style={{ color: G, fontFamily: "'Syne',sans-serif" }}>${ed.price.toFixed(2)}</span>
+                </div>
+              </div>
+
+              <Button className="w-full" size="lg" onClick={() => setStep(1)}>Continue to Payment →</Button>
+            </div>
+          )}
+
+          {/* ── STEP 1: Payment ── */}
+          {step === 1 && (
+            <div style={{ animation: "fadeUp .25s ease" }}>
+              <h3 className="text-xl font-black text-white mb-5" style={{ fontFamily: "'Syne',sans-serif" }}>Payment Details</h3>
+
+              {/* Mini order recap */}
+              <div className="flex items-center justify-between mb-5 px-4 py-3 rounded-xl" style={{ background: "rgba(0,230,77,0.04)", border: "1px solid rgba(0,230,77,0.12)" }}>
+                <div>
+                  <div className="text-[10px] font-mono tracking-widest mb-0.5" style={{ color: G }}>{ed.badge}</div>
+                  <div className="text-sm text-white">{platform}</div>
+                </div>
+                <div className="text-xl font-black" style={{ color: G, fontFamily: "'Syne',sans-serif" }}>${ed.price.toFixed(2)}</div>
+              </div>
+
+              <div className="space-y-4 mb-5">
+                <div>
+                  <label className="text-[11px] font-mono tracking-widest mb-2 block" style={{ color: "#444" }}>CARDHOLDER NAME</label>
+                  <input
+                    type="text"
+                    placeholder="Full name on card"
+                    value={form.name}
+                    onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                    style={inputStyle("name")}
+                  />
+                  {errors.name && <div className="text-xs mt-1" style={{ color: "#ef4444" }}>{errors.name}</div>}
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-mono tracking-widest mb-2 block" style={{ color: "#444" }}>CARD NUMBER</label>
+                  <input
+                    type="text"
+                    placeholder="1234 5678 9012 3456"
+                    value={form.card}
+                    onChange={e => setForm(f => ({ ...f, card: fmtCard(e.target.value) }))}
+                    style={{ ...inputStyle("card"), fontFamily: "'DM Mono', monospace" }}
+                  />
+                  {errors.card && <div className="text-xs mt-1" style={{ color: "#ef4444" }}>{errors.card}</div>}
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[11px] font-mono tracking-widest mb-2 block" style={{ color: "#444" }}>EXPIRY</label>
+                    <input
+                      type="text"
+                      placeholder="MM/YY"
+                      value={form.expiry}
+                      onChange={e => setForm(f => ({ ...f, expiry: fmtExpiry(e.target.value) }))}
+                      style={{ ...inputStyle("expiry"), fontFamily: "'DM Mono', monospace" }}
+                    />
+                    {errors.expiry && <div className="text-xs mt-1" style={{ color: "#ef4444" }}>{errors.expiry}</div>}
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-mono tracking-widest mb-2 block" style={{ color: "#444" }}>CVV</label>
+                    <input
+                      type="password"
+                      placeholder="•••"
+                      value={form.cvv}
+                      onChange={e => setForm(f => ({ ...f, cvv: e.target.value.replace(/\D/g, "").slice(0, 4) }))}
+                      style={{ ...inputStyle("cvv"), fontFamily: "'DM Mono', monospace" }}
+                    />
+                    {errors.cvv && <div className="text-xs mt-1" style={{ color: "#ef4444" }}>{errors.cvv}</div>}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 mb-5 text-[11px] font-mono" style={{ color: "#333" }}>
+                <span>🔒</span>
+                <span>Secured with 256-bit SSL encryption · No card data stored</span>
+              </div>
+
+              <div className="flex gap-3">
+                <Button variant="ghost" size="md" onClick={() => setStep(0)} className="flex-shrink-0">← Back</Button>
+                <button
+                  onClick={handlePay}
+                  disabled={processing}
+                  className="flex-1 py-3.5 rounded-xl font-bold text-black text-sm transition-all hover:scale-[1.02] active:scale-[0.98]"
+                  style={{ background: G, boxShadow: `0 0 20px rgba(0,230,77,0.25)`, opacity: processing ? 0.75 : 1 }}
+                >
+                  {processing ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <span
+                        className="w-4 h-4 rounded-full border-2 border-black/30 border-t-black inline-block"
+                        style={{ animation: "chkSpin 0.7s linear infinite" }}
+                      />
+                      Processing...
+                    </span>
+                  ) : `Pay $${ed.price.toFixed(2)} →`}
+                </button>
+              </div>
+              <style>{`@keyframes chkSpin{to{transform:rotate(360deg)}}`}</style>
+            </div>
+          )}
+
+          {/* ── STEP 2: Confirmation ── */}
+          {step === 2 && (
+            <div className="text-center py-6" style={{ animation: "fadeUp .3s ease" }}>
+              <div
+                className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-5"
+                style={{ background: "rgba(0,230,77,0.1)", border: `1.5px solid rgba(0,230,77,0.35)`, boxShadow: "0 0 30px rgba(0,230,77,0.1)" }}
+              >
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+                  <path d="M5 13l4 4L19 7" stroke={G} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </div>
+
+              <h3 className="text-2xl font-black text-white mb-1" style={{ fontFamily: "'Syne',sans-serif" }}>Order Confirmed!</h3>
+              <p className="text-sm mb-6" style={{ color: "#555" }}>Your EA SPORTS FC 26 purchase is complete.</p>
+
+              <div className="rounded-xl p-5 mb-5 text-left" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                {[
+                  ["ORDER NUMBER", orderNumber],
+                  ["EDITION", ed.badge],
+                  ["PLATFORM", platform],
+                  ["TOTAL PAID", `$${ed.price.toFixed(2)}`],
+                ].map(([label, value]) => (
+                  <div key={label} className="flex justify-between items-center py-2 border-b last:border-0" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
+                    <span className="text-[11px] font-mono tracking-widest" style={{ color: "#444" }}>{label}</span>
+                    <span className="text-xs font-mono font-bold" style={{ color: label === "TOTAL PAID" || label === "ORDER NUMBER" ? G : "#ccc" }}>{value}</span>
+                  </div>
+                ))}
+              </div>
+
+              <p className="text-[11px] font-mono mb-6" style={{ color: "#333" }}>
+                A confirmation receipt has been sent to your email.<br />
+                Access your game through the {platform} store.
+              </p>
+
+              <Button className="w-full" onClick={onClose}>Back to FC 26 →</Button>
+            </div>
+          )}
+
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════
    ROOT APP
 ══════════════════════════════════════════ */
 
 export default function App() {
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [selectedEdition, setSelectedEdition] = useState("standard");
+
+  function openCheckout(edition = "standard") {
+    setSelectedEdition(edition || "standard");
+    setCheckoutOpen(true);
+  }
+
   return (
     <div style={{ background: "#050505", fontFamily: "'DM Sans', sans-serif" }}>
       {/* Google Fonts */}
@@ -1015,12 +1379,18 @@ export default function App() {
         ::-webkit-scrollbar-thumb{background:#1a1a1a;border-radius:99px}
       `}</style>
 
-      <Navbar activeSection="" />
-      <Hero />
+      <CheckoutModal
+        open={checkoutOpen}
+        edition={selectedEdition}
+        onClose={() => setCheckoutOpen(false)}
+        onSelectEdition={setSelectedEdition}
+      />
+      <Navbar activeSection="" onBuy={() => openCheckout()} />
+      <Hero onBuy={() => openCheckout()} />
       <StatsBar />
       <GameModes />
       <FeaturesCarousel />
-      <Editions />
+      <Editions onBuy={openCheckout} />
       <News />
       <Community />
       <PlayerStats />
